@@ -40,6 +40,31 @@ A powerful MCP server that enables searching for and reading files on your local
   - Access restrictions and permissions
   - Safe file reading with error handling
 
+## Architecture
+
+```
+Claude/Desktop/VSCode
+        ↓
+      MCP
+        ↓
+   server.py
+        ↓
+Vector Search (ChromaDB)
+        ↓
+Embeddings
+        ↓
+PDF/DOCX/TXT Files
+```
+
+### Architecture Components
+
+1. **Claude/Desktop/VSCode**: AI interfaces that connect to the MCP server
+2. **MCP (Model Context Protocol)**: Standardized protocol for AI-tool communication
+3. **server.py**: Main MCP server implementing search and document tools
+4. **Vector Search (ChromaDB)**: Semantic search engine for intelligent file discovery
+5. **Embeddings**: Vector representations of document content using sentence-transformers
+6. **File Storage**: Support for PDF, DOCX, TXT, and other document formats
+
 ## Project Structure
 
 ```
