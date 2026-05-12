@@ -2,43 +2,39 @@
 
 **An intelligent Model Context Protocol (MCP) server for seamless local file discovery and content retrieval**
 
-A powerful MCP server that enables searching for and reading files on your local system. Perfect for AI-powered assistants that need access to local file search capabilities, document reading, and intelligent file discovery.
+A powerful MCP server that enables searching for and reading files on your local system. Perfect for AI-powered assistants (Claude, VSCode) that need access to local file search capabilities, document reading, and intelligent semantic search powered by vector embeddings.
 
 ## Features
 
-- **Semantic File Search**: Advanced search using vector embeddings for intelligent file discovery
-  - Searches by content meaning, not just keywords
-  - Powered by embeddings and ChromaDB
+- **🔍 Dual Search Methods**
+  - Keyword-based file search by name and path
+  - Semantic search using AI embeddings and ChromaDB
   
-- **Multi-Format Support**: Handle various document types seamlessly
+- **📄 Multi-Format Support**
   - PDF files (.pdf)
   - Word documents (.docx)
-  - Text files (.txt, .log, .md)
-  - Code files with syntax awareness
+  - Text files (.txt, .md, .log)
+  - Code files (.py, .java, .yml, .yaml, .json)
   
-- **Vector Embeddings**: Convert documents to semantic vectors for intelligent queries
-  - Semantic similarity matching
-  - Contextual search capabilities
+- **🧠 Vector Intelligence**
+  - Semantic embeddings using sentence-transformers (all-MiniLM-L6-v2)
+  - ChromaDB for persistent vector storage
+  - Text chunking with configurable overlap
   
-- **ChromaDB Integration**: Persistent vector storage and retrieval
-  - Fast similarity search
-  - Efficient vector indexing
-  - Metadata filtering
+- **💬 Document Q&A**
+  - Ask questions across indexed documents
+  - Retrieve relevant evidence from documents
+  - Context-aware responses
   
-- **Document Q&A**: Ask questions about document content
-  - Answer questions based on document context
-  - Extract relevant information from files
-  - Powered by AI-driven semantic search
+- **🔒 Secure Access Control**
+  - Whitelisted directory access
+  - Blocked sensitive file detection (.env, .pem, .key, credentials)
+  - Path validation and access restrictions
   
-- **MCP Tools**: Full Model Context Protocol implementation
-  - search_files: Keyword and semantic file search
-  - read_file: Extract content from documents
-  - query_documents: Ask questions about documents
-  
-- **Secure Directory Access**: Controlled access to local files
-  - Configurable search directories
-  - Access restrictions and permissions
-  - Safe file reading with error handling
+- **🔧 MCP Integration**
+  - Full Model Context Protocol implementation
+  - Compatible with Claude, VSCode, and other MCP clients
+  - 9 powerful tools for file operations
 
 ## Architecture
 
@@ -47,23 +43,28 @@ Claude/Desktop/VSCode
         ↓
       MCP
         ↓
-   server.py
+   server.py (MCP Server)
         ↓
-Vector Search (ChromaDB)
+    ├── reader.py (File Reading)
+    ├── indexer.py (Text Chunking)
+    └── vector_store.py (ChromaDB)
         ↓
-Embeddings
+   Embeddings (sentence-transformers)
         ↓
-PDF/DOCX/TXT Files
+   ChromaDB (Vector Storage)
+        ↓
+PDF/DOCX/TXT/Code Files
 ```
 
-### Architecture Components
+### Core Components
 
-1. **Claude/Desktop/VSCode**: AI interfaces that connect to the MCP server
-2. **MCP (Model Context Protocol)**: Standardized protocol for AI-tool communication
-3. **server.py**: Main MCP server implementing search and document tools
-4. **Vector Search (ChromaDB)**: Semantic search engine for intelligent file discovery
-5. **Embeddings**: Vector representations of document content using sentence-transformers
-6. **File Storage**: Support for PDF, DOCX, TXT, and other document formats
+| Component | Purpose |
+|-----------|---------|
+| **server.py** | MCP server with 9 tools for file operations |
+| **reader.py** | Multi-format file readers (PDF, DOCX, TXT, etc.) |
+| **vector_store.py** | ChromaDB integration for semantic search |
+| **indexer.py** | Text chunking with configurable overlap (800 chars, 100 overlap) |
+| **config.py** | Configuration for allowed directories, blocked files, search settings |
 
 ## Project Structure
 
@@ -71,12 +72,18 @@ PDF/DOCX/TXT Files
 File-search-mcp/
 ├── src/
 │   ├── __init__.py
-│   └── server.py           # Main MCP server implementation
+│   ├── server.py           # Main MCP server with 9 tools
+│   ├── reader.py           # Multi-format file readers
+│   ├── vector_store.py     # ChromaDB semantic search
+│   ├── indexer.py          # Text chunking logic
+│   └── config.py           # Configuration settings
 ├── tests/
 │   ├── __init__.py
 │   └── test_server.py      # Unit tests
+├── data/
+│   └── chroma_db/          # Vector database (auto-created)
 ├── requirements.txt        # Python dependencies
-├── pyproject.toml         # Project configuration
+├── pyproject.toml          # Project configuration
 ├── .gitignore
 └── README.md
 ```
@@ -108,49 +115,132 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the MCP server:
+### Start the MCP Server
 ```bash
 python -m src.server
 ```
 
-The server will start and expose the following MCP tools:
+The server will initialize and be ready for MCP connections.
 
-### search_files(query: str)
-Search for files using keyword matching and path lookup.
-- **Input**: Search query string
-- **Output**: List of matching file paths (max 50 results)
-- **Example**: `search_files("report")` returns all files with "report" in name/path
+## Available MCP Tools
 
-### search_semantic(query: str)
-Search files semantically using vector embeddings and ChromaDB.
-- **Input**: Natural language search query
-- **Output**: Ranked list of semantically relevant files
-- **Example**: `search_semantic("financial performance documents")` finds related files by meaning
+### 🏥 Health & Configuration
+#### `health_check() → str`
+Check if MCP server is running and operational.
+```
+Example output: "AI File Intelligence MCP is running successfully."
+```
 
-### read_file(file_path: str)
-Read content from a file.
-- **Input**: Full file path
-- **Output**: File content (first 5000 characters)
-- **Supported formats**: .txt, .log, .md, code files, .pdf, .docx
-- **Example**: `read_file("C:/Users/Downloads/document.pdf")`
+#### `list_allowed_directories() → str`
+Show all directories allowed for indexing and searching.
+```
+Example output:
+C:\Users\YourName\Documents
+C:\Users\YourName\Downloads
+C:\Users\YourName\Desktop
+```
 
-### query_document(file_path: str, question: str)
-Ask questions about a specific document.
-- **Input**: File path and question
-- **Output**: Answer based on document content
-- **Example**: `query_document("report.pdf", "What was Q4 revenue?")`
+### 📂 File System Navigation
+#### `find_files(file_name: str) → str`
+Search for files by name across allowed directories.
+```
+Example: find_files("report")
+Output: List of files matching "report"
+```
+
+#### `find_folder(folder_name: str) → str`
+Search for folders by name across allowed directories.
+```
+Example: find_folder("Projects")
+Output: List of folders matching "Projects"
+```
+
+#### `list_files(folder_path: str) → str`
+List all files and folders inside a directory.
+```
+Example: list_files("C:\\Users\\YourName\\Documents")
+Output:
+DIR: C:\Users\YourName\Documents\Projects
+FILE: C:\Users\YourName\Documents\report.pdf
+```
+
+### 📖 File Reading
+#### `read_file_content(file_path: str) → str`
+Read content from supported file formats.
+- **Supported**: PDF, DOCX, TXT, MD, LOG, PY, JAVA, YAML, JSON
+- **Output**: First 3000 characters per page
+```
+Example: read_file_content("C:\\Users\\YourName\\Downloads\\document.pdf")
+Output: File content with page numbers
+```
+
+### 🧠 Semantic Search & RAG
+#### `index_file(file_path: str) → str`
+Index a file into the vector database for semantic search.
+- Creates text chunks (800 chars with 100 char overlap)
+- Generates embeddings using sentence-transformers
+- Stores in ChromaDB for fast retrieval
+```
+Example: index_file("C:\\Users\\YourName\\Documents\\report.pdf")
+Output: "Successfully indexed file. Total chunks indexed: 45"
+```
+
+#### `semantic_search(query: str, top_k: int = 5) → str`
+Search indexed files semantically using vector embeddings.
+```
+Example: semantic_search("financial performance", top_k=5)
+Output: Top 5 most relevant chunks with file paths and content
+```
+
+#### `ask_documents(question: str) → str`
+Ask questions about indexed documents and get relevant answers.
+```
+Example: ask_documents("What was the Q4 revenue?")
+Output: Relevant document chunks that answer the question
+```
 
 ## Configuration
 
-Edit the `SEARCH_DIRECTORIES` list in `src/server.py` to customize which directories are searched:
+Edit `src/config.py` to customize:
+
 ```python
-SEARCH_DIRECTORIES = [
-    HOME / "OneDrive" / "Documents",
-    HOME / "Downloads",
-    HOME / "OneDrive" / "Desktop",
-    HOME / "Documents",
-    HOME / "Desktop"
+# Allowed directories for indexing/searching
+ALLOWED_DIRS = [
+    Path.home() / "Documents",
+    Path.home() / "Downloads",
+    Path.home() / "Desktop"
 ]
+
+# Sensitive files to block
+BLOCKED_FILES = [".env", ".pem", ".key", "id_rsa", "credentials"]
+
+# Semantic search results (default top 5)
+DEFAULT_TOP_K = 5
+
+# Max characters in search results (1200)
+MAX_RESULT_CHARS = 1200
+```
+
+## Workflow Example
+
+### 1. Find a File
+```bash
+find_files("quarterly_report")
+```
+
+### 2. Index It
+```bash
+index_file("C:\\Users\\YourName\\Documents\\quarterly_report.pdf")
+```
+
+### 3. Search Semantically
+```bash
+semantic_search("revenue and profit margins")
+```
+
+### 4. Ask Questions
+```bash
+ask_documents("What were the main challenges mentioned?")
 ```
 
 ## Development
@@ -165,6 +255,51 @@ pytest tests/
 pip install -e .
 ```
 
+### Customize Text Chunking
+Edit `src/indexer.py`:
+```python
+def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100):
+```
+- `chunk_size`: Larger = fewer chunks, less granular search
+- `overlap`: Prevents context loss between chunks
+
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| mcp | Model Context Protocol framework |
+| chromadb | Vector database for semantic search |
+| sentence-transformers | AI embeddings model (all-MiniLM-L6-v2) |
+| python-docx | DOCX file reading |
+| pypdf | PDF file reading |
+| numpy | Numerical computing |
+
+## Security
+
+- ✅ Directory whitelisting prevents unauthorized access
+- ✅ Sensitive file detection blocks .env, credentials, keys
+- ✅ Path validation ensures files are in allowed directories
+- ✅ Error handling prevents information leakage
+- ✅ Safe file reading with UTF-8 error handling
+
+## Troubleshooting
+
+### "Access denied" error
+- File is outside allowed directories (check `config.py`)
+- File name contains blocked keywords (.env, credentials, etc.)
+
+### No semantic search results
+- Make sure to `index_file()` first before searching
+- Check if files were successfully indexed
+
+### Slow semantic search
+- Reduce `top_k` value for faster results
+- Consider indexing fewer files initially
+
 ## License
 
 MIT
+
+## Contributing
+
+Contributions welcome! Please ensure tests pass and follow the existing code style.
