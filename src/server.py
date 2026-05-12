@@ -1,111 +1,232 @@
-import os
 from pathlib import Path
-
-from docx import Document
-from pypdf import PdfReader
-
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Laptop File Finder")
+from reader import read_file
+from indexer import chunk_text
+from vector_store import add_chunk, search_chunks
 
-HOME = Path.home()
+# -----------------------------
+# MCP Server Initialization
+# -----------------------------
+mcp = FastMCP("AI File Intelligence MCP")
 
-SEARCH_DIRECTORIES = [
-    HOME / "OneDrive" / "Documents",
-    HOME / "Downloads",
-    HOME / "OneDrive" / "Desktop",
-    HOME / "Documents",
-    HOME / "Desktop"
+# -----------------------------
+# Allowed Directories
+# -----------------------------
+ALLOWED_DIRS = [
+    Path.home() / "Documents",
+    Path.home() / "Downloads",
+    Path.home() / "Desktop"
+]
+
+# Block sensitive files
+BLOCKED_FILES = [
+    ".env",
+    ".pem",
+    ".key",
+    "id_rsa",
+    "credentials"
 ]
 
 
+# -----------------------------
+# Helper Functions
+# -----------------------------
+def is_allowed_path(file_path: str) -> bool:
+    """
+    Ensure file is inside allowed directories.
+    """
+    try:
+        path = Path(file_path).resolve()
+
+        allowed = any(
+            str(path).startswith(str(allowed_dir.resolve()))
+            for allowed_dir in ALLOWED_DIRS
+        )
+
+        blocked = any(
+            blocked_name.lower() in path.name.lower()
+            for blocked_name in BLOCKED_FILES
+        )
+
+        return allowed and not blocked
+
+    except Exception:
+        return False
+
+
+def format_results(results):
+    """
+    Nicely format vector search results.
+    """
+    output = []
+
+    documents = results.get("documents", [[]])[0]
+    metadatas = results.get("metadatas", [[]])[0]
+
+    for doc, meta in zip(documents, metadatas):
+
+        file_path = meta.get("file_path", "Unknown")
+        page = meta.get("page", "N/A")
+        chunk = meta.get("chunk", "N/A")
+
+        output.append(
+            f"""
+========================================
+FILE   : {file_path}
+PAGE   : {page}
+CHUNK  : {chunk}
+
+CONTENT:
+{doc[:1200]}
+========================================
+"""
+        )
+
+    return "\n".join(output)
+
+
+# -----------------------------
+# MCP Tools
+# -----------------------------
 @mcp.tool()
-def search_files(query: str) -> str:
+def health_check() -> str:
     """
-    Search files by filename and full folder path.
+    Check whether MCP server is running.
     """
-
-    matches = []
-    query_lower = query.lower()
-
-    for directory in SEARCH_DIRECTORIES:
-
-        if not directory.exists():
-            continue
-
-        for root, dirs, files in os.walk(str(directory)):
-
-            for file in files:
-
-                full_path = os.path.join(root, file)
-
-                if (
-                    query_lower in file.lower()
-                    or query_lower in full_path.lower()
-                ):
-                    matches.append(full_path)
-
-    if not matches:
-        return "No matching files found."
-
-    return "\n".join(matches[:50])
+    return "AI File Intelligence MCP is running successfully."
 
 
 @mcp.tool()
-def read_file(file_path: str) -> str:
+def index_file(file_path: str) -> str:
     """
-    Read txt, log, markdown, code, docx, and pdf files.
+    Index a single file into the vector database.
+
+    Supported:
+    - PDF
+    - DOCX
+    - TXT
+    - MD
+    - LOG
+    - JAVA
+    - PY
+    - YAML
+    - JSON
+    """
+
+    if not is_allowed_path(file_path):
+        return (
+            "Access denied.\n"
+            "File is outside allowed directories "
+            "or is a blocked sensitive file."
+        )
+
+    try:
+        pages = read_file(file_path)
+
+        total_chunks = 0
+
+        for page in pages:
+
+            page_number = page["page"]
+            text = page["text"]
+
+            chunks = chunk_text(text)
+
+            for idx, chunk in enumerate(chunks):
+
+                chunk_id = (
+                    f"{file_path}"
+                    f"-page-{page_number}"
+                    f"-chunk-{idx}"
+                )
+
+                metadata = {
+                    "file_path": file_path,
+                    "page": page_number,
+                    "chunk": idx
+                }
+
+                add_chunk(
+                    chunk_id=chunk_id,
+                    text=chunk,
+                    metadata=metadata
+                )
+
+                total_chunks += 1
+
+        return (
+            f"Successfully indexed file.\n"
+            f"File: {file_path}\n"
+            f"Total chunks indexed: {total_chunks}"
+        )
+
+    except Exception as e:
+        return f"Error indexing file: {str(e)}"
+
+
+@mcp.tool()
+def semantic_search(query: str, top_k: int = 5) -> str:
+    """
+    Perform semantic vector search across indexed files.
     """
 
     try:
+        results = search_chunks(query, top_k)
 
-        path = Path(file_path)
+        documents = results.get("documents", [[]])[0]
 
-        if not path.exists():
-            return "File does not exist."
+        if not documents:
+            return "No matching results found."
 
-        # DOCX SUPPORT
-        if path.suffix.lower() == ".docx":
-
-            doc = Document(str(path))
-
-            text = [para.text for para in doc.paragraphs]
-
-            return "\n".join(text)[:5000]
-
-        # PDF SUPPORT
-        elif path.suffix.lower() == ".pdf":
-
-            reader = PdfReader(str(path))
-
-            text = []
-
-            for page in reader.pages:
-
-                extracted = page.extract_text()
-
-                if extracted:
-                    text.append(extracted)
-
-            return "\n".join(text)[:5000]
-
-        # TXT / CODE / LOGS
-        else:
-
-            with open(
-                path,
-                "r",
-                encoding="utf-8",
-                errors="ignore"
-            ) as file:
-
-                content = file.read()
-
-            return content[:5000]
+        return format_results(results)
 
     except Exception as e:
-        return f"Error reading file: {str(e)}"
+        return f"Semantic search failed: {str(e)}"
 
 
+@mcp.tool()
+def ask_documents(question: str) -> str:
+    """
+    Ask questions across indexed documents.
+    Retrieves the most relevant chunks.
+    """
+
+    try:
+        results = search_chunks(question, top_k=5)
+
+        documents = results.get("documents", [[]])[0]
+
+        if not documents:
+            return "No relevant information found."
+
+        response = [
+            "Relevant evidence retrieved from indexed documents:\n"
+        ]
+
+        formatted = format_results(results)
+
+        response.append(formatted)
+
+        return "\n".join(response)
+
+    except Exception as e:
+        return f"Document Q&A failed: {str(e)}"
+
+
+@mcp.tool()
+def list_allowed_directories() -> str:
+    """
+    Show directories allowed for indexing/searching.
+    """
+
+    return "\n".join(
+        [str(directory) for directory in ALLOWED_DIRS]
+    )
+
+
+# -----------------------------
+# Main
+# -----------------------------
 if __name__ == "__main__":
     mcp.run()
